@@ -11,3 +11,6 @@ __pycache__/
 # Logs
 *.log
 logs/
+
+# Docker
+docker-compose.override.yml
