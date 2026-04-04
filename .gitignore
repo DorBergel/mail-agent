@@ -1,0 +1,13 @@
+# Secrets — upload to VPS manually via scp
+.env
+credentials.json
+token.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Logs
+*.log
+logs/
