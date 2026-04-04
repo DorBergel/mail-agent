@@ -7,7 +7,7 @@ import db
 from filters import is_likely_job_email
 
 SINCE_DAYS = 30
-MAX_EMAILS = 5
+MAX_EMAILS = 30
 
 
 def main():
