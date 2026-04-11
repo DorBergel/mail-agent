@@ -138,7 +138,7 @@ def mark_as_processed(email_id):
     conn = connect()
     if conn is None:
         return False
-    
+
     try:
         cursor = conn.cursor()
         query = "INSERT INTO processed_emails (email_id) VALUES (%s)"
@@ -149,6 +149,109 @@ def mark_as_processed(email_id):
     except Exception as e:
         print(f"Error marking email as processed: {e}")
         return False
+    finally:
+        conn.close()
+
+
+def get_all_jobs(status=None, company=None):
+    """
+    Return all jobs as a list of dicts, with optional filters.
+    """
+    conn = connect()
+    if conn is None:
+        return []
+
+    try:
+        cursor = conn.cursor()
+        conditions = []
+        params = []
+        if status:
+            conditions.append("status = %s")
+            params.append(status)
+        if company:
+            conditions.append("company ILIKE %s")
+            params.append(f"%{company}%")
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        cursor.execute(
+            f"SELECT id, company, role, status, applied_date, last_updated, notes FROM jobs {where} ORDER BY last_updated DESC",
+            params
+        )
+        cols = ["id", "company", "role", "status", "applied_date", "last_updated", "notes"]
+        return [dict(zip(cols, row)) for row in cursor.fetchall()]
+    except Exception as e:
+        print(f"Error fetching jobs: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def get_job_by_id(job_id):
+    """
+    Return a single job as a dict, or None if not found.
+    """
+    conn = connect()
+    if conn is None:
+        return None
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, company, role, status, applied_date, last_updated, notes FROM jobs WHERE id = %s",
+            (job_id,)
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        cols = ["id", "company", "role", "status", "applied_date", "last_updated", "notes"]
+        return dict(zip(cols, row))
+    except Exception as e:
+        print(f"Error fetching job by id: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def delete_job(job_id):
+    """
+    Delete a job by id. Returns True if a row was deleted, False otherwise.
+    """
+    conn = connect()
+    if conn is None:
+        return False
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM jobs WHERE id = %s", (job_id,))
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        cursor.close()
+        return deleted
+    except Exception as e:
+        print(f"Error deleting job: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def get_stats():
+    """
+    Return total job count and a breakdown by status.
+    """
+    conn = connect()
+    if conn is None:
+        return None
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT status, COUNT(*) FROM jobs GROUP BY status")
+        by_status = {row[0]: row[1] for row in cursor.fetchall()}
+        cursor.execute("SELECT COUNT(*) FROM jobs")
+        total = cursor.fetchone()[0]
+        cursor.close()
+        return {"total": total, "by_status": by_status}
+    except Exception as e:
+        print(f"Error fetching stats: {e}")
+        return None
     finally:
         conn.close()
 

@@ -23,6 +23,33 @@ Monitors Gmail for job application emails and automatically tracks them in a Pos
 | Job offer | `offer` |
 | No response | `ghosted` |
 
+## REST API
+
+The agent exposes a FastAPI HTTP server for triggering the pipeline and managing job records.
+
+### Start the server
+
+```bash
+source .venv/bin/activate
+python api.py
+# or: uvicorn api:app --reload
+```
+
+Interactive docs available at `http://localhost:8000/docs`.
+
+### Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/run` | Trigger the full pipeline (fetch → filter → LLM → DB) |
+| `GET` | `/jobs` | List all tracked jobs. Supports `?status=` and `?company=` filters |
+| `GET` | `/jobs/{id}` | Get a single job by ID |
+| `POST` | `/jobs` | Manually add a job |
+| `PATCH` | `/jobs/{id}` | Update a job's status and/or notes |
+| `DELETE` | `/jobs/{id}` | Delete a job |
+| `GET` | `/stats` | Total count and breakdown by status |
+| `GET` | `/health` | Check DB and Ollama connectivity |
+
 ## Running with Docker
 
 ### Prerequisites
