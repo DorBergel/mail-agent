@@ -14,3 +14,17 @@ services:
     volumes:
       - ./credentials.json:/app/credentials.json:ro
       - ./token.json:/app/token.json
+
+  api:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - infra-net
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./credentials.json:/app/credentials.json:ro
+      - ./token.json:/app/token.json
+    command: uvicorn api:app --host 0.0.0.0 --port 8000
