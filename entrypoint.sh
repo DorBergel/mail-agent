@@ -1,6 +1,12 @@
 #!/bin/sh
 set -e
 
+# If arguments are passed (e.g. uvicorn), run them directly
+if [ "$#" -gt 0 ]; then
+    exec "$@"
+fi
+
+# Otherwise run the agent loop
 INTERVAL=${RUN_INTERVAL_SECONDS:-3600}
 
 echo "Mail agent starting. Run interval: ${INTERVAL}s"
