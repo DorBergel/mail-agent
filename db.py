@@ -1,7 +1,8 @@
 
-import psycopg2 
+import psycopg2
 import os
 from dotenv import load_dotenv
+import notion_sync
 
 
 load_dotenv()
@@ -72,6 +73,7 @@ def insert_job(company, role, status, applied_date=None):
             cursor.execute(query, (company, role, status))
         conn.commit()
         cursor.close()
+        notion_sync.upsert_job(company, role, status, applied_date)
         return True
     except Exception as e:
         print(f"Error inserting job: {e}")
@@ -100,6 +102,9 @@ def update_job_status(id, status, notes=None):
 
         conn.commit()
         cursor.close()
+        job = get_job_by_id(id)
+        if job:
+            notion_sync.upsert_job(job["company"], job["role"], status)
         return True
     except Exception as e:
         print(f"Error updating job status: {e}")
