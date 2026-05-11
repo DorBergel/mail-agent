@@ -32,7 +32,14 @@ def main():
         result = run_agent(email)
         print(f"       → {result}")
 
-        db.mark_as_processed(email_id)
+        if result.startswith("Inserted:"):
+            db_result = "inserted"
+        elif result.startswith("Updated:"):
+            db_result = "updated"
+        else:
+            db_result = "skipped"
+
+        db.mark_as_processed(email_id, db_result)
         processed += 1
 
     print(f"\nDone. Processed {processed} new email(s).")

@@ -8,7 +8,7 @@ SYSTEM_PROMPT = """You are a job application tracking assistant.
 
 You have one tool: update_job.
 
-ONLY call update_job if this email is a DIRECT RESPONSE to a job application 
+ONLY call update_job if this email is a DIRECT RESPONSE to a job application
 the user personally submitted to a company:
 - Application received confirmation
 - Interview invitation from a company the user applied to
@@ -28,12 +28,11 @@ If the answer is not clearly yes → do not call the tool.
 Status mapping:
 - "we received your application" → applied
 - "we'd like to schedule an interview" → interview
-- "moving forward with other candidates" → rejected  
+- "moving forward with other candidates" → rejected
 - "we'd like to offer you" → offer
 
-If the role is not mentioned in the email, use 'Unknown'.
-
-Extract company name from the sender domain or email body.
+For company: extract from the sender domain or email body. Never use the ATS platform name (Greenhouse, Lever, Workday) — use the actual employer.
+For role: extract the specific job title from the subject or body. If the role is genuinely not mentioned anywhere, omit the tool call entirely — do not guess or use a placeholder.
 """
 
 OLLAMA_API_URL = os.getenv("OLLAMA_API_URL")
@@ -73,9 +72,10 @@ tools_schema = [
 
 def build_user_message(email: dict) -> str:
     return f"""Subject: {email['subject']}
-    From: {email['sender']}
-    Date: {email['date']}
-{email['body'][:1500]}
+From: {email['sender']}
+Date: {email['date']}
+
+{email['body'][:3000]}
 """
 
 def run_agent(email: dict) -> str:
@@ -120,15 +120,26 @@ def run_agent(email: dict) -> str:
             tool_args[key] = tool_args[key].get("value", "")
 
     VALID_STATUSES = {"applied", "interview", "rejected", "offer", "ghosted"}
-    if not tool_args.get("company") or not tool_args.get("role"):
-        return "Skipped: LLM returned tool call with missing company or role."
+    company = tool_args.get("company", "").strip()
+    role = tool_args.get("role", "").strip()
+
+    if not company:
+        return "Skipped: LLM returned tool call with missing company."
+    if not role or role.lower() in ("unknown", "n/a", "not mentioned", "not specified"):
+        return f"Skipped: LLM returned unusable role '{role}' — email has no extractable job title."
     if tool_args.get("status") not in VALID_STATUSES:
         return f"Skipped: LLM returned invalid status '{tool_args.get('status')}'."
+
+    tool_args["company"] = company
+    tool_args["role"] = role
 
     # Always derive applied_date from the email header, never trust the LLM
     try:
         tool_args["applied_date"] = parsedate_to_datetime(email["date"]).strftime("%Y-%m-%d")
     except Exception:
         tool_args.pop("applied_date", None)
+
+    # Inject the Gmail message ID so it flows through to the DB and Notion
+    tool_args["source_email"] = email["email_id"]
 
     return TOOLS[tool_name](**tool_args)

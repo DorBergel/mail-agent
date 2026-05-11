@@ -16,5 +16,9 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE TABLE IF NOT EXISTS processed_emails (
     id SERIAL PRIMARY KEY,
     email_id VARCHAR(255) NOT NULL UNIQUE,
-    processed_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    processed_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    result VARCHAR(20) DEFAULT 'skipped'
 );
+
+-- Migration for existing deployments:
+-- ALTER TABLE processed_emails ADD COLUMN IF NOT EXISTS result VARCHAR(20) DEFAULT 'skipped';

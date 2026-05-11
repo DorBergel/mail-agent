@@ -55,25 +55,23 @@ def find_job(company, role):
         conn.close()
 
 
-def insert_job(company, role, status, applied_date=None):
+def insert_job(company, role, status, applied_date=None, source_email=None):
     """
     Insert a new job into the database.
     """
     conn = connect()
     if conn is None:
         return False
-    
+
     try:
         cursor = conn.cursor()
-        if applied_date:
-            query = "INSERT INTO jobs (company, role, status, applied_date) VALUES (%s, %s, %s, %s)"
-            cursor.execute(query, (company, role, status, applied_date))
-        else:
-            query = "INSERT INTO jobs (company, role, status) VALUES (%s, %s, %s)"
-            cursor.execute(query, (company, role, status))
+        cursor.execute(
+            "INSERT INTO jobs (company, role, status, applied_date, source_email) VALUES (%s, %s, %s, %s, %s)",
+            (company, role, status, applied_date, source_email),
+        )
         conn.commit()
         cursor.close()
-        notion_sync.upsert_job(company, role, status, applied_date)
+        notion_sync.upsert_job(company, role, status, applied_date, source_email)
         return True
     except Exception as e:
         print(f"Error inserting job: {e}")
@@ -82,29 +80,26 @@ def insert_job(company, role, status, applied_date=None):
         conn.close()
 
 
-def update_job_status(id, status, notes=None):
+def update_job_status(id, status, notes=None, source_email=None):
     """
     Update the status and notes of a job in the database.
+    source_email is the Gmail message ID that triggered this update.
     """
     conn = connect()
     if conn is None:
         return False
-    
+
     try:
         cursor = conn.cursor()
-
-        if notes is not None:
-            query = "UPDATE jobs SET status = %s, notes = %s, last_updated = NOW() WHERE id = %s"
-            cursor.execute(query, (status, notes, id))
-        else:
-            query = "UPDATE jobs SET status = %s, last_updated = NOW() WHERE id = %s"
-            cursor.execute(query, (status, id))
-
+        cursor.execute(
+            "UPDATE jobs SET status = %s, notes = %s, source_email = %s, last_updated = NOW() WHERE id = %s",
+            (status, notes, source_email, id),
+        )
         conn.commit()
         cursor.close()
         job = get_job_by_id(id)
         if job:
-            notion_sync.upsert_job(job["company"], job["role"], status)
+            notion_sync.upsert_job(job["company"], job["role"], status, source_email=source_email)
         return True
     except Exception as e:
         print(f"Error updating job status: {e}")
@@ -136,9 +131,11 @@ def is_processed(email_id):
         conn.close()
 
 
-def mark_as_processed(email_id):
+def mark_as_processed(email_id, result: str = "skipped"):
     """
-    Mark an email as processed by inserting its ID into the database.
+    Mark an email as processed.
+    result: 'inserted', 'updated', or 'skipped' — used to distinguish actionable
+    emails from filtered noise so skipped emails can be replayed after prompt changes.
     """
     conn = connect()
     if conn is None:
@@ -146,8 +143,10 @@ def mark_as_processed(email_id):
 
     try:
         cursor = conn.cursor()
-        query = "INSERT INTO processed_emails (email_id) VALUES (%s)"
-        cursor.execute(query, (email_id,))
+        cursor.execute(
+            "INSERT INTO processed_emails (email_id, result) VALUES (%s, %s)",
+            (email_id, result),
+        )
         conn.commit()
         cursor.close()
         return True

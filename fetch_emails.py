@@ -4,12 +4,45 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 from datetime import datetime, timedelta
-
+from html.parser import HTMLParser
+import re
 import os
-
 import base64
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+
+
+class _TextExtractor(HTMLParser):
+    """Walks an HTML document and collects visible text, skipping style/script blocks."""
+
+    def __init__(self):
+        super().__init__()
+        self._parts: list[str] = []
+        self._skip = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("style", "script", "head"):
+            self._skip = True
+        if tag in ("p", "br", "div", "li", "tr"):
+            self._parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in ("style", "script", "head"):
+            self._skip = False
+
+    def handle_data(self, data):
+        if not self._skip:
+            self._parts.append(data)
+
+    def get_text(self) -> str:
+        text = "".join(self._parts)
+        return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+def _strip_html(html_content: str) -> str:
+    extractor = _TextExtractor()
+    extractor.feed(html_content)
+    return extractor.get_text()
 
 def authenticate_gmail():
     creds = None
@@ -39,17 +72,30 @@ def build_query(since_days: int, label: str = None) -> str:
     return query
 
 
-def extract_body(payload) -> str:
-    if 'parts' in payload:
-        for part in payload['parts']:
-            if part['mimeType'] == 'text/plain':
-                data = part['body'].get('data', '')
-                return base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
-    
-    data = payload['body'].get('data', '')
-    if data:
-        return base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
-    
+def _decode(data: str) -> str:
+    return base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+
+
+def _find_part(payload: dict, mime_type: str) -> str | None:
+    """Recursively search a MIME tree for the first part matching mime_type."""
+    if payload.get("mimeType") == mime_type:
+        data = payload["body"].get("data", "")
+        if data:
+            return _decode(data)
+    for part in payload.get("parts", []):
+        result = _find_part(part, mime_type)
+        if result:
+            return result
+    return None
+
+
+def extract_body(payload: dict) -> str:
+    text = _find_part(payload, "text/plain")
+    if text:
+        return text
+    html = _find_part(payload, "text/html")
+    if html:
+        return _strip_html(html)
     return ""
 
 
