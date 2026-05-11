@@ -13,6 +13,9 @@ MAX_EMAILS = 30
 def main():
     print("Fetching emails...")
     emails = fetch_emails(since_days=SINCE_DAYS)
+    # Reverse so oldest emails are processed first — status updates must be chronological
+    # (e.g. applied → interview → rejected, not the reverse)
+    emails = list(reversed(emails))
     print(f"Found {len(emails)} emails. Processing up to {MAX_EMAILS}.")
 
     processed = 0

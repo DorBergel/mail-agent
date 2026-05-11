@@ -144,7 +144,7 @@ def mark_as_processed(email_id, result: str = "skipped"):
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO processed_emails (email_id, result) VALUES (%s, %s)",
+            "INSERT INTO processed_emails (email_id, result) VALUES (%s, %s) ON CONFLICT (email_id) DO NOTHING",
             (email_id, result),
         )
         conn.commit()
